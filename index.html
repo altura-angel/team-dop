@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RLC Residences - Priority Dashboard</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:#f7f6f3; color:#2b2620; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 28px 22px 48px; }
+  h1 { font-size: 20px; margin: 0 0 4px; color:#1f1b16; }
+  .sub { font-size: 13px; color:#6b6255; margin-bottom:16px; line-height:1.5; }
+  .sub b { color:#2b2620; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px; }
+  .toolbar input[type=text] { flex:1; min-width:180px; padding:8px 10px; border:1px solid #ddd6c9; border-radius:8px; font-size:13px; background:#fff; }
+  .chip { padding:6px 12px; border-radius:999px; border:1px solid #ddd6c9; background:#fff; font-size:12.5px; cursor:pointer; color:#5a5346; user-select:none; }
+  .chip.active { background:#2b2620; color:#fff; border-color:#2b2620; }
+  .chip[data-tier="Focus"].active { background:#b5651d; border-color:#b5651d; }
+  .chip[data-tier="Consider"].active { background:#7a6a3f; border-color:#7a6a3f; }
+  .chip[data-tier="Deprioritize"].active { background:#8a8378; border-color:#8a8378; }
+  table { width:100%; border-collapse: collapse; background:#fff; border-radius:10px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  thead th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:#8a8072; padding:10px 12px; background:#efeadf; border-bottom:1px solid #e2dccb; cursor:pointer; white-space:nowrap; }
+  thead th:hover { color:#2b2620; }
+  tbody td { padding:11px 12px; font-size:13px; vertical-align:top; border-bottom:1px solid #f0ece2; }
+  tbody tr.rowmain:hover { background:#fbf9f4; cursor:pointer; }
+  .badge { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .badge.Focus { background:#fbe7d4; color:#8a4a10; }
+  .badge.Consider { background:#efe9d6; color:#6b5d2e; }
+  .badge.Deprioritize { background:#eeece8; color:#7a7468; }
+  .badge.seg { background:#eef1ea; color:#4a5940; margin-left:4px; }
+  .name { font-weight:600; color:#1f1b16; }
+  .loc { color:#8a8072; font-size:12px; }
+  .price { font-variant-numeric: tabular-nums; font-weight:500; }
+  .units { font-variant-numeric: tabular-nums; }
+  .sync { font-size:11.5px; color:#8a8072; }
+  .detail { display:none; background:#fbf9f4; }
+  .detail.open { display:table-row; }
+  .detail-inner { padding: 4px 12px 18px 12px; }
+  .detail-grid { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  @media (max-width: 760px) { .detail-grid { grid-template-columns: 1fr; } }
+  .detail h4 { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#8a8072; margin:0 0 6px; }
+  .detail ul { margin:0; padding-left:18px; font-size:13px; line-height:1.55; }
+  .detail p.script { font-size:13px; line-height:1.6; background:#fff; border:1px solid #e2dccb; border-radius:8px; padding:10px 12px; margin:0; }
+  .boxrow { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  a.boxlink { font-size:12px; color:#8a4a10; text-decoration:none; }
+  a.boxlink:hover { text-decoration:underline; }
+  .footer-note { font-size:11.5px; color:#a39a8c; margin-top:16px; line-height:1.6; }
+  .count { font-size:12px; color:#8a8072; margin-left:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>RLC Residences - Priority Dashboard</h1>
+  <div class="sub">Prepared by Angel from a full pass through the RLC Residences Box shared folder (all 25 CORE + FLAGSHIP projects) as of <b id="syncDate"></b>. Click any row for selling points and a sales-opener script.</div>
+
+  <div class="toolbar">
+    <span class="chip active" data-tier="all">All</span>
+    <span class="chip" data-tier="Focus">Focus</span>
+    <span class="chip" data-tier="Consider">Consider</span>
+    <span class="chip" data-tier="Deprioritize">Deprioritize</span>
+    <input type="text" id="search" placeholder="Search project or location...">
+    <span class="count" id="count"></span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th data-k="name">Project</th>
+        <th data-k="tier">Priority</th>
+        <th data-k="location">Location</th>
+        <th data-k="priceRange">Price Range (&#8369;)</th>
+        <th data-k="units">Units Open</th>
+        <th data-k="lastSynced">Last Synced</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+
+  <div class="footer-note">
+    Prices and unit counts are total contract prices pulled directly from the latest "Investment List" pricelist in each project's Box folder (or, where noted, more current local materials for several Cebu/Bridgetowne projects). Box's own pricelists stop updating around Aug 2025 for most CORE/FLAGSHIP projects - rows marked "needs fresh sync" mean no full unit list was available as of this pull. Always confirm exact price and availability with your Sales Manager before quoting a buyer - discounts, promos, and final terms require written company approval per RPMMC's Sales Agency Contract.
+  </div>
+</div>
+
+<script>
+const DATA = [
+  // ---- FOCUS ----
+  {
+    name: "Le Pont Residences", segment: "Flagship", tier: "Focus",
+    location: "Bridgetowne Destination Estate, Rosario, Pasig City",
+    priceRange: "14.4M - 83.2M", units: "100+ open (Tower 1 alone); Tower 2 also active",
+    lastSynced: "Jul 28, 2026 (local)",
+    points: [
+      "Widest price span in the whole portfolio - fits an entry 1BR buyer and a single-deal-covers-quota buyer in the same building.",
+      "Sits inside the Bridgetowne estate (retail, offices, dining already operating) - an easy 'this isn't a bet on a neighborhood, the neighborhood exists' pitch for remote buyers.",
+      "Target completion Sept 2029 - long runway means flexible staggered payment terms are a real selling point, not a stretch."
+    ],
+    script: "Le Pont is inside Bridgetowne - the estate itself is already open, so I'm not asking you to bet on a neighborhood that doesn't exist yet. Units run from a 43sqm 1BR around &#8369;14M up to multi-bedroom units in the &#8369;30-80M range, so tell me your budget and I'll pull the floors that actually fit it. With completion targeted for 2029 there's real room on the payment schedule - want me to send the current floor plan and unit list for your range?"
+  },
+  {
+    name: "Cirrus", segment: "Core", tier: "Focus",
+    location: "Bridgetowne East, Rosario, Pasig City",
+    priceRange: "6.6M - 6.7M (studio only)", units: "15 open, active promo terms",
+    lastSynced: "Jul 28, 2026 (local)",
+    points: [
+      "Cheapest entry ticket in the entire portfolio at ~&#8369;6.6M.",
+      "Currently carrying Lease-To-Own-120 and Early-Move-In-180 promo terms on open units - confirm exact terms with your Sales Manager before quoting.",
+      "Same Bridgetowne estate as Le Pont - natural pairing: start a buyer here, upsell to Le Pont later."
+    ],
+    script: "If Le Pont's price point is a stretch, Cirrus is in the same Bridgetowne estate at about &#8369;6.6M for a 24sqm studio - same location story, much smaller ticket. There are move-in and lease-to-own options on the table right now; let me confirm the exact current terms with my Sales Manager and send them your way."
+  },
+  {
+    name: "Galleria Residences Cebu", segment: "Flagship", tier: "Focus",
+    location: "General Maxilom Ave. Ext., Cebu City",
+    priceRange: "6.1M - 18.2M", units: "~35 open across Towers 1-3",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Established Cebu City address, close to Ayala Center Cebu - easy to describe to someone who grew up in the city.",
+      "Studio to 2BR spread across three towers gives room to match almost any Cebuano OFW budget.",
+      "Mix of Regular Sale and EMI90/LTO120 terms on different units - good for tailoring cash flow to the buyer."
+    ],
+    script: "Galleria is right off Maxilom in Cebu City, walking distance to Ayala Center - the kind of address a Cebuano buyer recognizes immediately. Units span studio at around &#8369;6M up to two-bedroom near &#8369;18M across three towers, so there's flexibility on both price and payment terms. Want me to check which floors are open in your budget?"
+  },
+  {
+    name: "MIRA (Tower 1 & 2)", segment: "Core", tier: "Focus",
+    location: "Mirasol St., Brgy. San Roque, Pasig City",
+    priceRange: "6.3M - 17.4M", units: "70+ open across both towers",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Deep, genuinely open inventory across two full towers - not a scarcity pitch, a selection pitch.",
+      "Studio to 2BR-with-balcony spread covers first-time OFW buyers through family upgraders.",
+      "Steadily repriced monthly through Box's own history - signals sustained developer push."
+    ],
+    script: "MIRA has real depth right now - dozens of open units across both towers, from studios near &#8369;6.3M up to two-bedrooms with balcony near &#8369;17M. Because there's this much selection, I can actually match a unit to your floor and budget preference rather than just offering whatever's left. What's your target budget and unit size?"
+  },
+  {
+    name: "Sierra Valley Gardens (Bldg 1-4)", segment: "Core", tier: "Focus",
+    location: "Ortigas Ave. Ext. / Suburban Dr., Cainta, Rizal",
+    priceRange: "4.2M - 13.8M", units: "80+ scattered units across 4 buildings",
+    lastSynced: "Aug 1, 2025 (Bldg 1,2,4) / Jun 20, 2025 (Bldg 3)",
+    points: [
+      "Lowest price floor in the entire portfolio - the strongest remittance-friendly pitch you have.",
+      "Five-building master community; Buildings 1-4 are all still actively selling.",
+      "Good volume-builder for OFW buyers who aren't ready for BGC/Ortigas-core prices but still want proximity."
+    ],
+    script: "If budget is the main constraint, Sierra Valley Gardens starts around &#8369;4.2M for a studio - the most affordable entry point I can offer you outside the provincial projects, but it's still Ortigas-adjacent in Cainta. There are units open across four buildings, so I can match your exact budget rather than a single fixed price. What's the ceiling you're working with?"
+  },
+  {
+    name: "SYNC (N & S Towers)", segment: "Core", tier: "Focus",
+    location: "Brgy. Bagong Ilog, Pasig City",
+    priceRange: "5.1M - 27.3M", units: "60+ open across sampled towers (Y Tower not sampled this pass)",
+    lastSynced: "Aug 1, 2025 (N) / Jul 18, 2025 (S)",
+    points: [
+      "Deep inventory, mostly studio-1BR with some 2BR - a genuine volume play.",
+      "Ortigas-adjacent Pasig location, close to BGC/Ortigas job centers.",
+      "Mix of Regular Sale and EMI90/LTO120 terms across units gives room to match a buyer's cash flow."
+    ],
+    script: "SYNC has a lot of open stock right now - mostly studios and 1BRs from about &#8369;5M, with some 2BRs going up to &#8369;27M. It's in Pasig, an easy commute to both Ortigas and BGC, which matters if this is a future-move-back-home unit rather than a pure rental play. Let me know your price range and I'll pull the specific floors that are open."
+  },
+  {
+    name: "Mantawi Residences", segment: "Flagship", tier: "Focus",
+    location: "Ouano Ave., Mandaue City, Cebu",
+    priceRange: "12.7M - 58.4M (reference range - needs fresh unit sync)", units: "Needs fresh count - local Jul 28, 2026 file exists, not yet pulled this pass",
+    lastSynced: "Reference only - confirm with Angel",
+    points: [
+      "Newest launch in the Cebu lineup - Tower 1 concrete pouring completed March 2026, a concrete construction-progress story for buyers who can't visit.",
+      "Mandaue/Cebu industrial-commercial corridor location.",
+      "Strong 'watch it rise' narrative - useful for balikbayan buyers still deciding between pre-selling projects."
+    ],
+    script: "Mantawi is the newest project in the Cebu lineup - Tower 1 already had its concrete pouring completed this March, so there's real, verifiable progress I can show you even if you're overseas. It's positioned mid-to-upper tier, roughly &#8369;12.7M to &#8369;58M depending on unit size. Want me to pull the exact current floor availability before we go further?"
+  },
+
+  // ---- CONSIDER ----
+  {
+    name: "Amisa Private Residences", segment: "Flagship", tier: "Consider",
+    location: "Mactan, Lapu-Lapu City, Cebu",
+    priceRange: "9.3M - 54.9M (reference range - needs fresh unit sync)", units: "Needs fresh count - local Jul 28, 2026 files exist per tower (A-D), not yet pulled this pass",
+    lastSynced: "Reference only - confirm with Angel",
+    points: [
+      "Beachfront/resort positioning - the only project in the portfolio with that angle.",
+      "Four towers (A-D), several already turned over with actual (not rendered) unit photos available.",
+      "Strong for higher-net-worth OFW/Middle East buyers wanting a literal vacation-and-investment property."
+    ],
+    script: "AmiSa is the only beachfront project in the portfolio - Mactan, actual sea view units, not a rendering. If your buyer is thinking 'a place to come home to on annual leave' as much as an investment, this is the one to lead with. Let me confirm which towers have current availability in your budget before we go further."
+  },
+  {
+    name: "Azalea Place Cebu", segment: "Core", tier: "Consider",
+    location: "Cebu City",
+    priceRange: "Needs fresh sync - fact sheet reviewed, pricing not pulled this pass", units: "Needs fresh count",
+    lastSynced: "Reference only - confirm with Angel",
+    points: [
+      "Business-traveler-oriented amenities - library, business room, conference room, function room.",
+      "Established, fully-amenitized building based on actual (not rendered) photos on file.",
+      "Good fit for Cebu-based OFW families wanting practical value over flashy amenities."
+    ],
+    script: "Azalea Place is built more for practical, everyday living than for showpiece amenities - it has a library, business room, and conference room, which tends to land well with buyers who see the unit as a real home base, not just an investment. Let me pull the current price list before we talk numbers."
+  },
+  {
+    name: "Woodsville Crest (Bldg 1 & 2 sampled; Bldg 3 also active)", segment: "Core", tier: "Consider",
+    location: "Edison Ave., Merville, Para&ntilde;aque City",
+    priceRange: "5.3M - 14.7M", units: "60+ scattered units across Buildings 1-2 (Bldg 3 not sampled this pass)",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Garden-unit variant available - a real differentiator versus typical high-rise stock.",
+      "Para&ntilde;aque location is NAIA-adjacent, relevant for frequent-flyer OFW buyers.",
+      "Steady monthly Box repricing through Aug 2025 - actively managed inventory."
+    ],
+    script: "Woodsville Crest is in Para&ntilde;aque, close to the airport - that alone resonates with a lot of OFW buyers who fly in and out often. Prices run from about &#8369;5.3M for a studio to &#8369;14.7M for a 2BR with garden, and there are garden-unit layouts you won't find in most high-rises. What's the household size I should be planning around?"
+  },
+  {
+    name: "The Radiance Manila Bay", segment: "Flagship", tier: "Consider",
+    location: "Roxas Boulevard, Pasay City",
+    priceRange: "9.4M - 19.5M (sample of 5 units seen)", units: "Only 5 open in latest list - real scarcity",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Roxas Boulevard / Manila Bay address - sunset-view prestige location.",
+      "Small remaining unit count is genuine, not manufactured urgency.",
+      "Some units carry EMI90/LTO120 terms - check current status before quoting."
+    ],
+    script: "The Radiance is on Roxas Boulevard, so the pitch is the address and the bay view - there's a real reason this isn't a volume project. There are only a handful of units left in the current list, so if a buyer is genuinely interested I'd move on confirming details quickly rather than treating this as a browse-and-decide-later property."
+  },
+  {
+    name: "The Sapphire Bloc (East Tower)", segment: "Flagship", tier: "Consider",
+    location: "Sapphire/Garnet/Onyx Roads, Ortigas Center, Pasig City",
+    priceRange: "7.6M - 12.8M", units: "40+ open, mostly 1BR",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Ortigas Center CBD address - strong rental-demand story for office workers.",
+      "Mostly consistent 1BR unit sizing (~36sqm) - simplifies the pitch and comparison.",
+      "'For Completion' pricing still available on open units."
+    ],
+    script: "Sapphire Bloc is in the heart of Ortigas Center - if your buyer is thinking rental income, this is a strong pitch because of the office-worker demand right at the doorstep. Most open units are a consistent ~36sqm 1BR in the &#8369;9-10M range, which makes it easy to compare against other Ortigas options. Want me to check what's currently open?"
+  },
+  {
+    name: "Axis Residences", segment: "Core", tier: "Consider",
+    location: "Pioneer St., Brgy. Bangkal Ilaya, Mandaluyong City",
+    priceRange: "4.9M - 10.2M (sample)", units: "Low count visible - scattered remaining units",
+    lastSynced: "Aug 1, 2025 (Box, Tower B)",
+    points: [
+      "Mandaluyong / Boni-EDSA corridor, walkable to MRT.",
+      "Entry-level studio price point.",
+      "Scattered remaining inventory - better suited to a specific-unit push than a volume campaign."
+    ],
+    script: "Axis Residences is along the Boni-EDSA corridor in Mandaluyong, close to the MRT - good for a buyer who wants easy commute access for family already based in Manila. There isn't a lot of stock left, so if you're interested I'd confirm the exact open units before committing to a specific pitch."
+  },
+  {
+    name: "Acacia Escalades", segment: "Core", tier: "Consider",
+    location: "Metro Manila (confirm exact barangay with Sales Manager)",
+    priceRange: "5.4M - 9.0M (sample)", units: "Low count visible - scattered remaining units",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Compact studio-2BR mix.",
+      "Scattered remaining units suggest a late-stage sell-down - real urgency to use in messaging.",
+      "Confirm exact barangay/address before pitching - not captured on this pricelist header."
+    ],
+    script: "Acacia Escalades is in its later selling stage - what's left is scattered across a few floors rather than a full building's worth, so the honest pitch is genuine scarcity, not a manufactured one. Let me confirm the exact address and current open units before we go further."
+  },
+  {
+    name: "Gateway Regency Studios", segment: "Core", tier: "Consider",
+    location: "Pioneer St., Brgy. Barangka Ilaya, Mandaluyong City",
+    priceRange: "3.9M - 5.0M", units: "39 studio units open",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: [
+      "Lowest absolute entry price in the entire portfolio (~&#8369;3.9M).",
+      "All-studio building - the simplest possible pitch for a first-time OFW buyer.",
+      "Large open count (39 units) - a real volume opportunity, not scraps."
+    ],
+    script: "If someone's buying their very first property and budget is tight, Gateway Regency is the lowest entry price I have - studios starting around &#8369;3.9M, and there are close to 40 units still open, so this isn't a scarcity pitch, it's genuinely available inventory. Simple story: one unit type, one price range, easy decision."
+  },
+  {
+    name: "The Pearl Place", segment: "Core", tier: "Consider",
+    location: "Ortigas area (confirm exact address)",
+    priceRange: "5.1M - 13.1M (sample)", units: "Small remaining count visible",
+    lastSynced: "Jun 1, 2025 (Box)",
+    points: [
+      "Studio to 2BR mix.",
+      "Slower Box repricing cadence than peer projects - worth a status check before pushing hard.",
+      "Ortigas-area address."
+    ],
+    script: "The Pearl Place hasn't been repriced as often as some of our other Ortigas-area projects, so before I lead with this one, let me get a current status check from my Sales Manager - I want to make sure what I'm quoting is still accurate."
+  },
+  {
+    name: "Aurora Escalades", segment: "Core", tier: "Consider",
+    location: "Cubao, Quezon City",
+    priceRange: "4.4M - 4.8M (reference range)", units: "Needs fresh count",
+    lastSynced: "Reference only - confirm with Angel",
+    points: [
+      "Second-most affordable entry point after Gateway Regency.",
+      "Cubao - established, transit-connected QC address.",
+      "All-studio building simplifies the pitch."
+    ],
+    script: "Aurora Escalades is in Cubao - well-established, transit-connected, and one of the most affordable entries in the portfolio at under &#8369;5M. Good option for a buyer anchored to Quezon City specifically. Let me pull current availability before we quote a unit."
+  },
+
+  // ---- DEPRIORITIZE ----
+  {
+    name: "Signa Designer Residences", segment: "Flagship", tier: "Deprioritize",
+    location: "Rufino corner Valero St., Salcedo Village, Makati City",
+    priceRange: "14.0M - 18.6M", units: "Only 3 units left",
+    lastSynced: "Jul 11, 2026 (local) - Box pricelist stale since Jan 2021",
+    points: [
+      "Near sold out - only 3 units remain as of the local July 2026 list.",
+      "Makati Salcedo Village address is still a strong story if a buyer specifically wants Makati.",
+      "Not worth a marketing campaign - better as a one-off pitch if the right buyer surfaces."
+    ],
+    script: "Signa is essentially sold out - there are only 3 units left, all 1BR, in the &#8369;14-18.6M range. If you have a buyer who specifically wants Makati/Salcedo Village and moves fast, I can check current status, but this isn't one to lead a campaign with."
+  },
+  {
+    name: "The Trion Towers", segment: "Flagship", tier: "Deprioritize",
+    location: "McKinley Parkway, BGC, Taguig City",
+    priceRange: "13.2M - 61.8M (reference)", units: "Tower 1 fully sold; Tower 2 down to 1 penthouse, currently on hold",
+    lastSynced: "Apr 13, 2026 (local); Box T2&3 active to Aug 2025",
+    points: [
+      "Tower 1's Box pricelist folder is now empty - fully sold.",
+      "Tower 2's last remaining unit (a 200.5sqm penthouse, ~&#8369;62.7M) is marked ON HOLD, not available.",
+      "BGC address is prestigious but there's effectively nothing to sell here right now."
+    ],
+    script: "Trion Towers is effectively closed out - Tower 1 is fully sold, and the only unit left in Tower 2 is a penthouse currently on hold. Not worth pitching unless a buyer specifically asks about it."
+  },
+  {
+    name: "Chimes Greenhills Residences", segment: "Core", tier: "Deprioritize",
+    location: "San Juan (Greenhills / CGR)",
+    priceRange: "n/a", units: "Sold out",
+    lastSynced: "Apr 2025 (Box, last file)",
+    points: ["Labeled SOLD OUT in Angel's own local materials folder.", "No active pricing to work with."],
+    script: "Chimes Greenhills is sold out - no active units to pitch. Skip this one."
+  },
+  {
+    name: "Sonata Private Residences", segment: "Flagship", tier: "Deprioritize",
+    location: "San Miguel Ave. corner Lourdes St., Mandaluyong City",
+    priceRange: "n/a", units: "No fresh pricelist since Jul 2022",
+    lastSynced: "Jul 2022 (Box, last file)",
+    points: ["No repricing in 3+ years - almost certainly near sold out or shelved.", "Confirm with Sales Manager before mentioning to a buyer."],
+    script: "Sonata Private Residences hasn't been repriced in Box since 2022 - treat as inactive until confirmed otherwise."
+  },
+  {
+    name: "The Magnolia Residences", segment: "Flagship", tier: "Deprioritize",
+    location: "New Manila, Quezon City",
+    priceRange: "n/a", units: "No pricelist files at all in Box",
+    lastSynced: "No data on file",
+    points: ["Pricelist folder is completely empty - strong signal it's fully sold or discontinued from active marketing."],
+    script: "No pricing data exists for Magnolia in the shared folder at all - treat as inactive."
+  },
+  {
+    name: "Escalades East Tower", segment: "Core", tier: "Deprioritize",
+    location: "Mandaluyong City (confirm exact address)",
+    priceRange: "n/a", units: "Last pricelist from 2022",
+    lastSynced: "2022 (Box, last file)",
+    points: ["Stale for 3+ years - likely inactive or fully absorbed into another project code."],
+    script: "Escalades East Tower's last pricelist is from 2022 - don't lead with this one without confirming status first."
+  },
+  {
+    name: "Woodsville Residences", segment: "Core", tier: "Deprioritize",
+    location: "Para&ntilde;aque City",
+    priceRange: "n/a", units: "Last pricelist from Mar 2024",
+    lastSynced: "Mar 2024 (Box, last file)",
+    points: ["Superseded in practice by the actively-selling Woodsville Crest.", "Confirm before pitching."],
+    script: "Woodsville Residences hasn't been repriced since March 2024 - Woodsville Crest is the active project in that family now."
+  },
+  {
+    name: "The Residences at The Westin Manila (Sonata Premier)", segment: "Flagship", tier: "Deprioritize",
+    location: "Mandaluyong City (Sonata Place)",
+    priceRange: "~55.5M (single unit seen, incl. parking)", units: "Only 1 unit visible in latest list",
+    lastSynced: "Aug 1, 2025 (Box)",
+    points: ["Ultra-luxury, hotel-branded (Westin) niche - top of the whole portfolio's pricing.", "Only one unit currently visible - opportunistic single-deal territory, not a volume focus."],
+    script: "The Westin-branded residences are the top of our entire portfolio price-wise - right now there's essentially one unit visible, around &#8369;55M all-in. Only worth raising with a buyer who's explicitly hotel-brand-luxury shopping."
+  },
+  {
+    name: "Sierra Valley Gardens - Building 5", segment: "Core", tier: "Deprioritize",
+    location: "Ortigas Ave. Ext., Cainta, Rizal",
+    priceRange: "n/a", units: "Last pricelist from Jul 2024",
+    lastSynced: "Jul 2024 (Box, last file)",
+    points: ["Stale relative to Buildings 1-4, which are still repriced monthly.", "Lead with SVG 1-4 instead."],
+    script: "Building 5 at Sierra Valley Gardens hasn't been repriced since mid-2024 - steer buyers to Buildings 1 through 4 instead, which are active."
+  }
+];
+
+document.getElementById('syncDate').textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+let activeTier = 'all';
+let searchTerm = '';
+let sortKey = null;
+let sortDir = 1;
+
+function tierRank(t){ return t==='Focus'?0:t==='Consider'?1:2; }
+
+function render(){
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  let rows = DATA.filter(d => {
+    if (activeTier !== 'all' && d.tier !== activeTier) return false;
+    if (searchTerm && !(d.name.toLowerCase().includes(searchTerm) || d.location.toLowerCase().includes(searchTerm))) return false;
+    return true;
+  });
+  if (sortKey) {
+    rows = rows.slice().sort((a,b) => {
+      let av = sortKey==='tier' ? tierRank(a.tier) : (a[sortKey]||'');
+      let bv = sortKey==='tier' ? tierRank(b.tier) : (b[sortKey]||'');
+      if (av < bv) return -1*sortDir;
+      if (av > bv) return 1*sortDir;
+      return 0;
+    });
+  } else {
+    rows = rows.slice().sort((a,b) => tierRank(a.tier) - tierRank(b.tier));
+  }
+  document.getElementById('count').textContent = rows.length + ' of ' + DATA.length + ' projects';
+
+  rows.forEach((d, i) => {
+    const id = 'r' + i + '_' + d.name.replace(/[^a-z0-9]/gi,'');
+    const tr = document.createElement('tr');
+    tr.className = 'rowmain';
+    tr.innerHTML = `
+      <td><div class="name">${d.name}</div><span class="badge seg">${d.segment}</span></td>
+      <td><span class="badge ${d.tier}">${d.tier}</span></td>
+      <td class="loc">${d.location}</td>
+      <td class="price">&#8369;${d.priceRange}</td>
+      <td class="units">${d.units}</td>
+      <td class="sync">${d.lastSynced}</td>
+    `;
+    tr.addEventListener('click', () => {
+      const detail = document.getElementById(id);
+      detail.classList.toggle('open');
+    });
+    tbody.appendChild(tr);
+
+    const detailTr = document.createElement('tr');
+    detailTr.className = 'detail';
+    detailTr.id = id;
+    detailTr.innerHTML = `
+      <td colspan="6">
+        <div class="detail-inner">
+          <div class="detail-grid">
+            <div>
+              <h4>Selling points</h4>
+              <ul>${d.points.map(p => `<li>${p}</li>`).join('')}</ul>
+            </div>
+            <div>
+              <h4>Sales opener script</h4>
+              <p class="script">${d.script}</p>
+            </div>
+          </div>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(detailTr);
+  });
+}
+
+document.querySelectorAll('.chip[data-tier]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-tier]').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activeTier = chip.getAttribute('data-tier');
+    render();
+  });
+});
+
+document.getElementById('search').addEventListener('input', (e) => {
+  searchTerm = e.target.value.toLowerCase();
+  render();
+});
+
+document.querySelectorAll('thead th[data-k]').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.getAttribute('data-k');
+    if (sortKey === k) { sortDir *= -1; } else { sortKey = k; sortDir = 1; }
+    render();
+  });
+});
+
+render();
+</script>
+</body>
+</html>
